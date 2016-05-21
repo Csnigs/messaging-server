@@ -1,3 +1,7 @@
 {
-	"listening_port": 8085
+	"listening_port": 8085,
+	"ws": {
+		"read_buffer_size": 1024,
+		"write_buffer_size": 1024
+	}
 }

@@ -2,37 +2,55 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
+	"net/http"
+	"text/template"
 )
 
-type Server struct {
-	configFile string
-	logFile    string
-	verbose    bool
+var (
+	configFile = flag.String("config", "", "if specified, uses config file from that path")
+	logFile    = flag.String("logfile", "", "if specified, writes log to file")
+	verbose    = flag.Bool("verbose", false, "if set, increase the amount of log")
 
-	Config Config
+	// Our configuration.
+	config Config
 
-	clients map[int]*Client
+	// The homepage html output.
+	homeTempl *template.Template
+)
+
+func homeHandler(c http.ResponseWriter, req *http.Request) {
+	homeTempl.Execute(c, req.Host)
 }
 
 func main() {
-	// init server
-	srv := Server{
-		clients: make(map[int]*Client),
-	}
-	// set flags and config
-	flag.StringVar(&srv.configFile, "config", "", "if specified, uses config file from that path")
-	flag.StringVar(&srv.logFile, "logfile", "", "if specified, writes log to file")
 	flag.Parse()
 
-	cfg := Config{}
-	err := SetupConfig(srv.configFile, &cfg)
+	// setup config
+	err := SetupConfig(*configFile, &config)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// start listening
-	log.Println("Signaling server listening on port ", cfg.ListeningPort)
+	// init server
+	srv := Server{
+		clients:    make(map[int]*Client),
+		in:         make(chan []byte),
+		register:   make(chan *Client),
+		unregister: make(chan *Client),
+	}
 
-	log.Println("done")
+	go srv.run()
+
+	homeTempl = template.Must(template.ParseFiles("client.html"))
+	http.HandleFunc("/", homeHandler)
+	http.Handle("/ws", wsHandler{srv: &srv})
+
+	log.Println("Listening on port", config.ListeningPort)
+	if err := http.ListenAndServe(fmt.Sprintf(":%d", config.ListeningPort), nil); err != nil {
+		log.Fatal("ListenAndServe:", err)
+	}
+
+	log.Println("exiting.")
 }
