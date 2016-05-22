@@ -1,22 +1,36 @@
 package main
 
-import "log"
+import (
+	"fmt"
+	"log"
+)
 
 type Server struct {
 	// The server configuration.
 	config *Config
 
 	// Registered client, indexed by their ID.
-	clients map[int]*Client
+	clients map[int]*client
 
 	// Inbound messages from the clients connections.
-	in chan []byte
+	in chan message
 
 	// Register requests from clients.
-	register chan *Client
+	register chan *client
 
 	// Unregister requests from clients.
-	unregister chan *Client
+	unregister chan *client
+}
+
+type message struct {
+	// Source User ID.
+	Src int `json:"src"`
+
+	// Destination User ID.
+	Dest int `json:"dest"`
+
+	// Content of the message.
+	Data string `json:"data"`
 }
 
 func (s *Server) run() {
@@ -29,6 +43,7 @@ func (s *Server) run() {
 					log.Println("Registering Client:", cli.id)
 				}
 				s.clients[cli.id] = cli
+				cli.out <- []byte(fmt.Sprintf("Connection established, your ID is %d", cli.id))
 			} else {
 				log.Printf("WARNING: Registration attempt from already registered client %d", cli.id)
 			}
@@ -40,22 +55,29 @@ func (s *Server) run() {
 				}
 				delete(s.clients, cli.id)
 				// Close its outbound channel.
-				close(cli.conn.out)
+				close(cli.out)
 			}
 		case msg := <-s.in:
 			if *verbose {
-				log.Println("Incoming message:", string(msg))
+				log.Println("Incoming message:", msg)
 			}
 
-			// Broadcast the message to all client for now.
-			for _, cli := range s.clients {
-				select {
-				case cli.conn.out <- msg:
-				default: // If the client channel buffer is full we assume he dropped his connection.
-					delete(s.clients, cli.id)
-					close(cli.conn.out)
-				}
+			cli := s.clients[msg.Dest]
+			// safety check: destination user could drop between the frontend check
+			// done when the source user sent his message and now.
+			if cli == nil {
+				continue
 			}
+			select {
+			case cli.out <- []byte(msg.Data):
+			default: // If the client channel buffer is full we assume he dropped his connection.
+				if *verbose {
+					log.Println("Unregistering Client:", cli.id)
+				}
+				delete(s.clients, cli.id)
+				close(cli.out)
+			}
+
 		}
 	}
 }

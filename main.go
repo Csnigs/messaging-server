@@ -35,10 +35,10 @@ func main() {
 
 	// init server
 	srv := Server{
-		clients:    make(map[int]*Client),
-		in:         make(chan []byte),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
+		clients:    make(map[int]*client),
+		in:         make(chan message),
+		register:   make(chan *client),
+		unregister: make(chan *client),
 	}
 
 	go srv.run()
