@@ -21,7 +21,7 @@ type client struct {
 	out chan []byte
 
 	// The server struct.
-	srv *Server
+	srv *server
 }
 
 // Read incoming websocket message and forward it to the server message channel.
@@ -32,8 +32,8 @@ func (cli *client) reader() {
 			break
 		}
 
-		// This whole block should of course not be here and correct message formatting
-		// should be handled by the frontend.
+		// This whole block should of course not be here and correct
+		// message formatting should be handled by the frontend.
 		// The reader should do nothing else than passing along the message to the server channel.
 		var msg message
 		err = json.Unmarshal(rawMsg, &msg)
@@ -64,7 +64,7 @@ func (cli *client) writer() {
 }
 
 type wsHandler struct {
-	srv *Server
+	srv *server
 }
 
 // Spam 2 goroutines for each incoming request: a reader and a writer.

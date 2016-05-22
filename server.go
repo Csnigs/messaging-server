@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-type Server struct {
+type server struct {
 	// The server configuration.
 	config *Config
 
@@ -20,6 +20,10 @@ type Server struct {
 
 	// Unregister requests from clients.
 	unregister chan *client
+
+	// Exit channel
+	quit chan int
+	done bool
 }
 
 type message struct {
@@ -33,26 +37,43 @@ type message struct {
 	Data string `json:"data"`
 }
 
-func (s *Server) run() {
+func newserver() *server {
+	srv := server{
+		clients:    make(map[int]*client),
+		in:         make(chan message),
+		register:   make(chan *client),
+		unregister: make(chan *client),
+	}
+	return &srv
+}
+
+func (s *server) run() {
 	for {
+		if s.done {
+			break
+		}
+
 		select {
+		case <-s.quit:
+			s.done = true
 		case cli := <-s.register:
 			// Only register client not yet registered.
 			if _, present := s.clients[cli.id]; !present {
-				if *verbose {
-					log.Println("Registering Client:", cli.id)
-				}
+				log.Println("Registering Client:", cli.id)
 				s.clients[cli.id] = cli
-				cli.out <- []byte(fmt.Sprintf("Connection established, your ID is %d", cli.id))
+
+				// This out message is a hack and should be handled by the client on successfull connect.
+				select {
+				case cli.out <- []byte(fmt.Sprintf("Connection established, your ID is %d", cli.id)):
+				default:
+				}
 			} else {
 				log.Printf("WARNING: Registration attempt from already registered client %d", cli.id)
 			}
 		case cli := <-s.unregister:
 			if _, present := s.clients[cli.id]; present {
 				// Unregister the client.
-				if *verbose {
-					log.Println("Unregistering Client:", cli.id)
-				}
+				log.Println("Unregistering Client:", cli.id)
 				delete(s.clients, cli.id)
 				// Close its outbound channel.
 				close(cli.out)
@@ -61,7 +82,6 @@ func (s *Server) run() {
 			if *verbose {
 				log.Println("Incoming message:", msg)
 			}
-
 			cli := s.clients[msg.Dest]
 			// safety check: destination user could drop between the frontend check
 			// done when the source user sent his message and now.
@@ -71,13 +91,11 @@ func (s *Server) run() {
 			select {
 			case cli.out <- []byte(msg.Data):
 			default: // If the client channel buffer is full we assume he dropped his connection.
-				if *verbose {
-					log.Println("Unregistering Client:", cli.id)
-				}
+				log.Println("Can't pass message to client, unregistering Client:", cli.id)
 				delete(s.clients, cli.id)
 				close(cli.out)
 			}
-
 		}
 	}
+	log.Println("Server exiting...")
 }

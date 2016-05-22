@@ -34,18 +34,12 @@ func main() {
 	}
 
 	// init server
-	srv := Server{
-		clients:    make(map[int]*client),
-		in:         make(chan message),
-		register:   make(chan *client),
-		unregister: make(chan *client),
-	}
-
+	srv := newserver()
 	go srv.run()
 
 	homeTempl = template.Must(template.ParseFiles("client.html"))
 	http.HandleFunc("/", homeHandler)
-	http.Handle("/ws", wsHandler{srv: &srv})
+	http.Handle("/ws", wsHandler{srv: srv})
 
 	log.Println("Listening on port", config.ListeningPort)
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", config.ListeningPort), nil); err != nil {
