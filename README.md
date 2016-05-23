@@ -8,6 +8,7 @@ A basic golang implementation of a messaging server using gorilla/websocket and 
 - Copy the sample config file and rename it `cp ./config/config.json.sample ./config/config.json`
 - Check out the options `./messaging_server -h`
 - Run it: `./messaging_server`
-- Open multiple tabs in a web browser http://127.0.0.1:8089/ 
+- Open multiple tabs in a web browser http://127.0.0.1:8089/
+- I am using Ginkgo and Gomega for my tests. Check it out there: https://github.com/onsi/ginkgo | http://onsi.github.io/gomega/
 
 Keep in mind that the solution is hacky in some places to cover for the lack of real client.
